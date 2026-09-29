@@ -6,7 +6,8 @@ import StudentDashboard from './pages/StudentDashboard.jsx';
 import DriverDashboard from './pages/DriverDashboard.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 
-const API_BASE = 'http://localhost:5000/api';
+const DEFAULT_API_BASE = 'http://localhost:5000/api';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:5000/api`).replace(/\/+$/, '');
 
 const getStoredUser = () => {
   try {
@@ -66,9 +67,9 @@ export default function App() {
       <Route path="/" element={<Navigate to={sessionUser ? (sessionUser.user.role === 'STUDENT' ? '/student' : sessionUser.user.role === 'DRIVER' ? '/driver' : '/admin') : '/login'} replace />} />
       <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard onLogout={handleLogout} /></ProtectedRoute>} />
-      <Route path="/driver" element={<ProtectedRoute allowedRoles={['DRIVER']}><DriverDashboard onLogout={handleLogout} /></ProtectedRoute>} />
-      <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard onLogout={handleLogout} /></ProtectedRoute>} />
+      <Route path="/student/*" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard onLogout={handleLogout} /></ProtectedRoute>} />
+      <Route path="/driver/*" element={<ProtectedRoute allowedRoles={['DRIVER']}><DriverDashboard onLogout={handleLogout} /></ProtectedRoute>} />
+      <Route path="/admin/*" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard onLogout={handleLogout} /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

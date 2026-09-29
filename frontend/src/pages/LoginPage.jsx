@@ -11,6 +11,7 @@ const demoCredentials = {
 export default function LoginPage({ onLogin }) {
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState('STUDENT');
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: demoCredentials.STUDENT.email, password: demoCredentials.STUDENT.password });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,14 +33,24 @@ export default function LoginPage({ onLogin }) {
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        credentials: 'include',
+        body: JSON.stringify({
+          email: form.email.trim(),
+          password: form.password,
+        }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Login failed');
+
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await response.json() : {};
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
       onLogin(data);
       navigate('/');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Unable to connect to the server. Please check the backend and try again.');
     } finally {
       setLoading(false);
     }
@@ -48,37 +59,69 @@ export default function LoginPage({ onLogin }) {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <h2>College Bus Tracking</h2>
-        <p className="muted">Choose your login type</p>
+        <div className="brand-wrap">
+          <div className="logo-mark">B</div>
+          <div>
+            <div className="eyebrow" style={{ color: '#6e7d96', margin: 0 }}>College</div>
+            <strong>Bus Tracking</strong>
+          </div>
+        </div>
 
-        <div className="row" style={{ marginBottom: '18px' }}>
+        <h2>Welcome back</h2>
+        <p className="auth-subtitle">College Bus Tracking System</p>
+
+        <div className="role-switcher">
           {['STUDENT', 'DRIVER', 'ADMIN'].map((role) => (
             <button
               key={role}
               type="button"
-              className={`btn ${selectedRole === role ? 'btn-primary' : 'btn-secondary'}`}
+              className={selectedRole === role ? 'active' : ''}
               onClick={() => handleRoleChange(role)}
-              style={{ flex: 1, minWidth: '110px' }}
             >
-              {role === 'STUDENT' ? 'Student Login' : role === 'DRIVER' ? 'Driver Login' : 'Admin Login'}
+              {role === 'STUDENT' ? 'Student' : role === 'DRIVER' ? 'Driver' : 'Admin'}
             </button>
           ))}
         </div>
 
-        {error && <div className="notification" style={{ background: '#ffe7e7', borderColor: '#ffc2c2' }}>{error}</div>}
+        {error && <div className="notification" style={{ background: '#ffe7e7', borderColor: '#ffc2c2', padding: '12px 14px', borderRadius: '12px', marginBottom: '10px' }}>{error}</div>}
+
         <form className="form" onSubmit={handleSubmit}>
           <div className="field">
-            <label>Email</label>
+            <label>Email / Mobile</label>
             <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@college.edu" required />
           </div>
+
           <div className="field">
             <label>Password</label>
-            <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Password" required />
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              placeholder="Enter your password"
+              required
+            />
           </div>
-          <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Logging in...' : `${selectedRole === 'STUDENT' ? 'Student' : selectedRole === 'DRIVER' ? 'Driver' : 'Admin'} Login`}</button>
-          <div className="muted">Demo credentials: {demoCredentials[selectedRole].email} / {demoCredentials[selectedRole].password}</div>
-          <div className="muted">Need an account? <Link to="/register">Register here</Link></div>
+
+          <div className="inline-row">
+            <label className="checkbox-inline">
+              <input type="checkbox" checked={showPassword} onChange={() => setShowPassword((value) => !value)} />
+              Show password
+            </label>
+            <a href="#">Forgot Password?</a>
+          </div>
+
+          <button className="primary-btn" type="submit" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+
+          <div className="muted" style={{ fontSize: '0.8rem' }}>
+            Demo: {demoCredentials[selectedRole].email} / {demoCredentials[selectedRole].password}
+          </div>
         </form>
+
+        <div className="auth-links">
+          Need an account? <Link to="/register">Register</Link>
+        </div>
       </div>
     </div>
   );

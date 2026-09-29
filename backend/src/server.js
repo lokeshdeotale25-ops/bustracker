@@ -10,9 +10,31 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'college-bus-secret';
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+].filter(Boolean);
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
-app.use(express.json());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: '1mb' }));
+app.use((error, _req, res, next) => {
+  if (error instanceof SyntaxError && 'body' in error) {
+    return res.status(400).json({ message: 'Invalid JSON request body.' });
+  }
+  next(error);
+});
 
 const authRequired = (req, res, next) => {
   const header = req.headers.authorization;
@@ -351,6 +373,46 @@ app.get('/api/auth/me', authRequired, async (req, res) => {
     res.json({ user: sanitizeUser(user), college });
   } catch (error) {
     res.status(500).json({ message: 'Unable to fetch user profile', error: error.message });
+  }
+});
+
+app.patch('/api/auth/me', authRequired, async (req, res) => {
+  try {
+    const { name, email, phone } = req.body;
+    if (typeof name !== 'string' || !name.trim() || typeof email !== 'string' || !email.trim()) {
+      return res.status(400).json({ message: 'Name and email are required.' });
+    }
+
+    const existing = await get('SELECT id FROM users WHERE email = ? AND id != ?', [email.trim(), req.user.id]);
+    if (existing) {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+
+    await run('UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ?', [name.trim(), email.trim(), typeof phone === 'string' ? phone.trim() : '', req.user.id]);
+    const user = await get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+    res.json({ message: 'Profile updated successfully.', user: sanitizeUser(user) });
+  } catch (error) {
+    res.status(500).json({ message: 'Unable to update profile', error: error.message });
+  }
+});
+
+app.patch('/api/auth/password', authRequired, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (typeof currentPassword !== 'string' || !currentPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ message: 'Enter your current password and a new password of at least 8 characters.' });
+    }
+
+    const user = await get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+    if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) {
+      return res.status(401).json({ message: 'Current password is incorrect.' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await run('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, req.user.id]);
+    res.json({ message: 'Password changed successfully.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Unable to change password', error: error.message });
   }
 });
 

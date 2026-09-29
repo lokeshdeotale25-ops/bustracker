@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { API_BASE, getStoredUser } from '../App.jsx';
+import ProfileSection from './ProfileSection.jsx';
 
 export default function DriverDashboard({ onLogout }) {
   const session = getStoredUser();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [bus, setBus] = useState(null);
   const [route, setRoute] = useState(null);
   const [stops, setStops] = useState([]);
@@ -104,66 +108,163 @@ export default function DriverDashboard({ onLogout }) {
     setMessages(response.ok ? 'Driver notification sent.' : data.message || 'Unable to send notification');
   };
 
+  const navItems = [
+    { label: 'Home', page: 'home' },
+    { label: 'Students', page: 'students' },
+    { label: 'Buses', page: 'buses' },
+    { label: 'Trips', page: 'trips' },
+    { label: 'Profile', page: 'profile' },
+  ];
+
+  const currentScreen = location.pathname.replace(/^\/driver\/?/, '').split('/')[0] || 'home';
+  const activeTab = navItems.some((item) => item.page === currentScreen) ? currentScreen : 'home';
+
+  const goToScreen = (page) => {
+    if (page === 'home') navigate('/driver');
+    else navigate(`/driver/${page}`);
+  };
+
+  const renderHomeScreen = () => (
+    <>
+      <div className="stats-grid">
+        <div className="stat-box"><span>BUS</span><strong>{bus?.bus_number || 'N/A'}</strong></div>
+        <div className="stat-box"><span>STATUS</span><strong>{bus?.status || 'Stopped'}</strong></div>
+        <div className="stat-box"><span>ROUTE</span><strong>{route?.name || 'N/A'}</strong></div>
+        <div className="stat-box"><span>LOCATION</span><strong>{bus?.current_latitude ? 'Live' : 'Waiting'}</strong></div>
+      </div>
+
+      {messages && <div className="notification" style={{ marginTop: '18px' }}>{messages}</div>}
+
+      <div className="section-card">
+        <div className="section-title">
+          <span>Trip controls</span>
+        </div>
+        <div className="row" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <button className="primary-btn" onClick={startTrip}>Start Trip</button>
+          <button className="danger-btn" onClick={stopTrip}>Stop Trip</button>
+        </div>
+        <div className="row" style={{ gridTemplateColumns: '1fr 1fr', marginTop: '12px' }}>
+          <button className="success-btn" onClick={updateLocation}>Send Location</button>
+          <button className="secondary-btn" onClick={sendDriverNotification}>Notify Students</button>
+        </div>
+      </div>
+
+      <div className="section-card">
+        <div className="section-title">
+          <span>Assigned bus</span>
+        </div>
+        {bus ? (
+          <div className="status-card">
+            <div className="status-row">
+              <strong>{bus.name}</strong>
+              <span className={`badge ${bus.status?.toLowerCase() || 'stopped'}`}>{bus.status || 'Stopped'}</span>
+            </div>
+            <div className="muted" style={{ marginTop: '10px' }}>Route: {route?.name || 'Not assigned'}</div>
+            <div className="muted">GPS: {bus.current_latitude ? `${bus.current_latitude}, ${bus.current_longitude}` : 'No GPS signal'}</div>
+          </div>
+        ) : <p className="empty">No assigned bus yet.</p>}
+      </div>
+
+      <div className="section-card">
+        <div className="section-title">
+          <span>Stops</span>
+        </div>
+        {route ? (
+          <div className="timeline">
+            {stops.length === 0 ? <p className="empty">No stops available for this route.</p> : stops.map((stop) => (
+              <div key={stop.id} className="timeline-item">
+                <strong>{stop.name}</strong>
+                <div className="muted">{stop.latitude}, {stop.longitude}</div>
+              </div>
+            ))}
+          </div>
+        ) : <p className="empty">No route assigned.</p>}
+      </div>
+    </>
+  );
+
+  const renderStudentsScreen = () => (
+    <div className="section-card">
+      <div className="section-title"><span>Students</span></div>
+      <p className="empty">Student list is available from the college dashboard.</p>
+    </div>
+  );
+
+  const renderBusesScreen = () => (
+    <div className="section-card">
+      <div className="section-title"><span>Buses</span></div>
+      {bus ? (
+        <div className="notif-item">
+          <strong>{bus.bus_number}</strong>
+          <div>{bus.name}</div>
+          <small>{bus.status} • {route?.name || 'No route assigned'}</small>
+        </div>
+      ) : <p className="empty">No bus assigned.</p>}
+    </div>
+  );
+
+  const renderTripsScreen = () => (
+    <div className="section-card">
+      <div className="section-title"><span>Trips</span></div>
+      <p className="empty">Trip history is shown on the home screen and live trip controls.</p>
+    </div>
+  );
+
+  const renderProfileScreen = () => (
+    <ProfileSection role="DRIVER" user={session?.user} transport={{ bus, route, stops }} onLogout={onLogout} />
+  );
+
+  const renderScreen = () => {
+    switch (activeTab) {
+      case 'students': return renderStudentsScreen();
+      case 'buses': return renderBusesScreen();
+      case 'trips': return renderTripsScreen();
+      case 'profile': return renderProfileScreen();
+      case 'home':
+      default: return renderHomeScreen();
+    }
+  };
+
   if (loading) return <div className="container"><p>Loading driver details...</p></div>;
 
   return (
-    <div>
-      <header className="topbar">
-        <h1>Driver Dashboard</h1>
-        <div className="actions">
-          <span>{session?.user?.name}</span>
-          <button className="btn btn-secondary" onClick={onLogout}>Logout</button>
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="app-header-inner">
+          <div>
+            <p className="eyebrow">Driver Portal</p>
+            <h1>{session?.user?.name}</h1>
+          </div>
+          <button className="icon-button" aria-label="Notifications" type="button">🔔</button>
         </div>
       </header>
 
       <div className="container">
-        <div className="stats" style={{ marginTop: '20px' }}>
-          <div className="stat-box"><span className="muted">Assigned bus</span><strong>{bus?.bus_number || 'N/A'}</strong></div>
-          <div className="stat-box"><span className="muted">Status</span><strong>{bus?.status || 'Stopped'}</strong></div>
-          <div className="stat-box"><span className="muted">Route</span><strong>{route?.name || 'Not assigned'}</strong></div>
-        </div>
-
-        {messages && <div className="notification" style={{ marginTop: '18px' }}>{messages}</div>}
-
-        <div className="grid grid-2" style={{ marginTop: '20px' }}>
-          <div className="card">
-            <h3>Trip controls</h3>
-            <div className="row">
-              <button className="btn btn-primary" onClick={startTrip}>Start Trip</button>
-              <button className="btn btn-danger" onClick={stopTrip}>Stop Trip</button>
-              <button className="btn btn-success" onClick={updateLocation}>Send Live Location</button>
-              <button className="btn btn-secondary" onClick={sendDriverNotification}>Notify Students</button>
-            </div>
-            <p className="muted">Use your phone GPS to share live location while the trip is active.</p>
+        <div className="welcome-panel">
+          <div>
+            <small>Assigned bus</small>
+            <strong>{bus?.bus_number || 'Not assigned'}</strong>
           </div>
-
-          <div className="card">
-            <h3>Assigned bus info</h3>
-            {bus ? (
-              <div>
-                <p><strong>Bus:</strong> {bus.name} ({bus.bus_number})</p>
-                <p><strong>Status:</strong> <span className={`badge ${bus.status?.toLowerCase() || 'stopped'}`}>{bus.status || 'Stopped'}</span></p>
-                <p><strong>Current location:</strong> {bus.current_latitude ? `${bus.current_latitude}, ${bus.current_longitude}` : 'No GPS signal'}</p>
-              </div>
-            ) : <p className="empty">No assigned bus yet.</p>}
-          </div>
+          <button className="ghost-btn" onClick={onLogout} type="button">Logout</button>
         </div>
 
-        <div className="card" style={{ marginTop: '20px' }}>
-          <h3>Assigned route and stops</h3>
-          {route ? (
-            <div>
-              <p><strong>Route:</strong> {route.name}</p>
-              {stops.length === 0 ? <p className="empty">No stops available for this route.</p> : stops.map((stop) => (
-                <div key={stop.id} className="notification">
-                  <strong>{stop.name}</strong>
-                  <div>{stop.latitude}, {stop.longitude}</div>
-                </div>
-              ))}
-            </div>
-          ) : <p className="empty">No route assigned.</p>}
-        </div>
+        {renderScreen()}
       </div>
+
+      <nav className="bottom-nav" aria-label="Bottom navigation">
+        {navItems.map((item) => (
+          <button
+            key={item.page}
+            className={`nav-item ${activeTab === item.page ? 'active' : ''}`}
+            type="button"
+            onClick={() => goToScreen(item.page)}
+            aria-label={item.label}
+          >
+            <span>{item.page === 'home' ? '🏠' : item.page === 'students' ? '👥' : item.page === 'buses' ? '🚌' : item.page === 'trips' ? '🗺️' : '👤'}</span>
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
